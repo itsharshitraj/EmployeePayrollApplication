@@ -4,20 +4,14 @@ import com.tit.employeepayrollapp.dto.EmployeeDTO;
 import com.tit.employeepayrollapp.model.Employee;
 import com.tit.employeepayrollapp.repository.EmployeeRepository;
 import com.tit.employeepayrollapp.exception.ResourceNotFoundException;
-import com.tit.employeepayrollapp.config.ConfigProperties;
-
+import jakarta.validation.Valid;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import javax.annotation.PostConstruct;
-import com.tit.employeepayrollapp.config.AppConfig;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.stream.Collectors;
-
 import lombok.extern.slf4j.Slf4j;
+import java.util.ArrayList;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -26,111 +20,68 @@ public class EmployeeService {
     @Autowired
     private EmployeeRepository employeeRepository;
 
-    @Autowired
-    private ConfigProperties configProperties;  // Inject externalized config
-
-    @Value("${app.default.salary.threshold:1000}")
-    private int salaryThreshold;  // Read from properties with default value 1000
-
     private final List<Employee> inMemoryEmployees = new CopyOnWriteArrayList<>();
 
-    // Save Employee (Called by POST /employeeservice/create)
-    public Employee saveEmployee(EmployeeDTO employeeDTO) {
+    // ✅ Save Employee (Applies @Valid for validation)
+    public Employee saveEmployee(@Valid EmployeeDTO employeeDTO) {
         log.info("Creating Employee: Name = {}, Salary = {}", employeeDTO.getName(), employeeDTO.getSalary());
 
         Employee employee = new Employee();
         employee.setName(employeeDTO.getName());
         employee.setSalary(employeeDTO.getSalary());
 
-        log.debug("Stored Employee in-memory: {}", employee);
         inMemoryEmployees.add(employee);
 
-        Employee savedEmployee = employeeRepository.save(employee);
-        log.info("Employee persisted to database: {}", savedEmployee);
-
-        return savedEmployee;
+        return employeeRepository.save(employee);
     }
 
-    // Persist in-memory employees to the database
+    // ✅ Persist in-memory employees (Added better handling)
     public void persistEmployees() {
         List<Employee> validEmployees = inMemoryEmployees.stream()
-                .filter(emp -> emp.getSalary() >= salaryThreshold)  // Use externalized salary threshold
+                .filter(emp -> emp.getSalary() >= 1000)
                 .collect(Collectors.toList());
 
         if (!validEmployees.isEmpty()) {
-            log.info("Persisting {} employees to the database.", validEmployees.size());
             employeeRepository.saveAll(validEmployees);
             inMemoryEmployees.removeAll(validEmployees);
-            log.info("Successfully persisted employees.");
+            log.info("Successfully persisted {} employees", validEmployees.size());
         } else {
-            log.warn("No valid employees to persist. Ensure all employees have a salary of at least {}.", salaryThreshold);
-            throw new RuntimeException("No valid employees to persist.");
+            log.warn("No valid employees found for persistence.");
         }
     }
 
-    // Get All Employees (Called by GET /employeeservice/)
+    // ✅ Get All Employees
     public List<EmployeeDTO> getAllEmployees() {
-        log.info("Fetching all employees...");
         List<EmployeeDTO> employees = new ArrayList<>();
         inMemoryEmployees.forEach(emp -> employees.add(new EmployeeDTO(emp.getName(), emp.getSalary())));
         employees.addAll(employeeRepository.findAll().stream()
                 .map(emp -> new EmployeeDTO(emp.getName(), emp.getSalary()))
                 .collect(Collectors.toList()));
-        log.info("Total employees fetched: {}", employees.size());
         return employees;
     }
 
-    // Get Employee By ID (Called by GET /employeeservice/get/{id})
+    // ✅ Get Employee By ID (Throws `ResourceNotFoundException` if not found)
     public EmployeeDTO getEmployeeById(Long id) {
-        log.info("Fetching employee with ID: {}", id);
         Employee employee = employeeRepository.findById(id)
-                .orElseThrow(() -> {
-                    log.error("Employee not found with ID: {}", id);
-                    return new ResourceNotFoundException("Employee not found with id " + id);
-                });
-        log.info("Employee found: {}", employee);
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found with ID: " + id));
         return new EmployeeDTO(employee.getName(), employee.getSalary());
     }
 
-    // Update Employee (Called by PUT /employeeservice/update/{id})
-    public Employee updateEmployee(Long id, EmployeeDTO updatedEmployeeDTO) {
-        log.info("Updating employee with ID: {}", id);
+    // ✅ Update Employee (Applies @Valid for validation)
+    public Employee updateEmployee(Long id, @Valid EmployeeDTO updatedEmployeeDTO) {
         Employee employee = employeeRepository.findById(id)
-                .orElseThrow(() -> {
-                    log.error("Employee not found with ID: {}", id);
-                    return new ResourceNotFoundException("Employee not found with id " + id);
-                });
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found with ID: " + id));
 
         employee.setName(updatedEmployeeDTO.getName());
         employee.setSalary(updatedEmployeeDTO.getSalary());
-        Employee updatedEmployee = employeeRepository.save(employee);
-        log.info("Employee updated successfully: {}", updatedEmployee);
-        return updatedEmployee;
+
+        return employeeRepository.save(employee);
     }
 
-    // Delete Employee (Called by DELETE /employeeservice/delete/{id})
+    // ✅ Delete Employee (Throws `ResourceNotFoundException` if ID does not exist)
     public void deleteEmployee(Long id) {
-        log.info("Deleting employee with ID: {}", id);
         Employee employee = employeeRepository.findById(id)
-                .orElseThrow(() -> {
-                    log.error("Employee not found with ID: {}", id);
-                    return new ResourceNotFoundException("Employee not found with id " + id);
-                });
-
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found with ID: " + id));
         employeeRepository.delete(employee);
-        log.info("Employee with ID {} deleted successfully.", id);
     }
-
-    // Print Externalized Configuration
-    public void printConfig() {
-        log.info("Application Name: {}", configProperties.getName());
-        log.info("Application Version: {}", configProperties.getVersion());
-        log.info("Environment: {}", configProperties.getEnvironment());
-        log.info("Salary Threshold: {}", salaryThreshold);
-    }
-    @PostConstruct
-    public void init() {
-        printConfig();
-    }
-
 }
