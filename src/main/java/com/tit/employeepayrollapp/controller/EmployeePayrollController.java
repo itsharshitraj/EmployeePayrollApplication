@@ -19,6 +19,7 @@ public class EmployeePayrollController {
     @PostMapping("/create") /* Create Employee
       URL: http://localhost:8080/employeeservice/create */
     public ResponseEntity<Employee> createEmployee(@RequestBody EmployeeDTO employeeDTO) {
+        System.out.println("Received Request: " + employeeDTO);
         Employee savedEmployee = employeeService.saveEmployee(employeeDTO);
         return ResponseEntity.ok(savedEmployee);
     }
@@ -53,6 +54,13 @@ public class EmployeePayrollController {
     public String testEndpoint() {
         return "Employee Payroll Service is running!";
     }
+
+    @PostMapping("/persist")
+    public ResponseEntity<String> persistEmployeesToDatabase() {
+        employeeService.persistEmployees();
+        return ResponseEntity.ok("In-memory employees persisted to database");
+    }
+
 
 }
 

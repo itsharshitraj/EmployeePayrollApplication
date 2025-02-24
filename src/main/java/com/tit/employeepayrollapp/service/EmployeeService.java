@@ -6,6 +6,8 @@ import com.tit.employeepayrollapp.repository.EmployeeRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.tit.employeepayrollapp.exception.ResourceNotFoundException;
+import java.util.ArrayList;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -15,21 +17,48 @@ public class EmployeeService {
     @Autowired
     private  EmployeeRepository employeeRepository;
 
+    private final List<Employee> inMemoryEmployees = new CopyOnWriteArrayList<>();
     // Save Employee (Called by POST /employeeservice/create)
     public Employee saveEmployee(EmployeeDTO employeeDTO) {
+        System.out.println("Creating Employee: Name = " + employeeDTO.getName() + ", Salary = " + employeeDTO.getSalary()); // Debug Log
+
         Employee employee = new Employee();
         employee.setName(employeeDTO.getName());
-        employee.setSalary(employeeDTO.getSalary());
+        employee.setSalary(employeeDTO.getSalary()); // Ensure Salary is set
+
+        System.out.println("Stored Employee: " + employee); // Debug Log
+       // Add to in-memory list before persisting
+        inMemoryEmployees.add(employee);
+
         return employeeRepository.save(employee);
     }
 
+
+    // Persist in-memory employees to the database
+    public void persistEmployees() {
+        List<Employee> validEmployees = inMemoryEmployees.stream()
+                .filter(emp -> emp.getSalary() >= 1000) // Ensure only valid salaries
+                .collect(Collectors.toList());
+
+        if (!validEmployees.isEmpty()) {
+            employeeRepository.saveAll(validEmployees); // Save valid employees
+            inMemoryEmployees.removeAll(validEmployees); // Remove only persisted employees
+        } else {
+            throw new RuntimeException("No valid employees to persist. Ensure all employees have a salary of at least 1000.");
+        }
+    }
+
+
     // Get All Employees (Called by GET /employeeservice/)
     public List<EmployeeDTO> getAllEmployees() {
-        return employeeRepository.findAll()
-                .stream()
+        List<EmployeeDTO> employees = new ArrayList<>();
+        inMemoryEmployees.forEach(emp -> employees.add(new EmployeeDTO(emp.getName(), emp.getSalary())));
+        employees.addAll(employeeRepository.findAll().stream()
                 .map(emp -> new EmployeeDTO(emp.getName(), emp.getSalary()))
-                .collect(Collectors.toList());
+                .collect(Collectors.toList()));
+        return employees;
     }
+
 
     // Get Employee By ID (Called by GET /employeeservice/get/{id})
     public EmployeeDTO getEmployeeById(Long id) {
