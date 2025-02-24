@@ -1,5 +1,7 @@
 package com.tit.employeepayrollapp.service;
 
+
+
 import com.tit.employeepayrollapp.dto.EmployeeDTO;
 import com.tit.employeepayrollapp.model.Employee;
 import com.tit.employeepayrollapp.repository.EmployeeRepository;
@@ -10,77 +12,101 @@ import java.util.ArrayList;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
+@Slf4j
 public class EmployeeService {
 
     @Autowired
-    private  EmployeeRepository employeeRepository;
+    private EmployeeRepository employeeRepository;
 
     private final List<Employee> inMemoryEmployees = new CopyOnWriteArrayList<>();
+
     // Save Employee (Called by POST /employeeservice/create)
     public Employee saveEmployee(EmployeeDTO employeeDTO) {
-        System.out.println("Creating Employee: Name = " + employeeDTO.getName() + ", Salary = " + employeeDTO.getSalary()); // Debug Log
+        log.info("Creating Employee: Name = {}, Salary = {}", employeeDTO.getName(), employeeDTO.getSalary());
 
         Employee employee = new Employee();
         employee.setName(employeeDTO.getName());
-        employee.setSalary(employeeDTO.getSalary()); // Ensure Salary is set
+        employee.setSalary(employeeDTO.getSalary());
 
-        System.out.println("Stored Employee: " + employee); // Debug Log
-       // Add to in-memory list before persisting
+        log.debug("Stored Employee in-memory: {}", employee);
+
         inMemoryEmployees.add(employee);
+        Employee savedEmployee = employeeRepository.save(employee);
+        log.info("Employee persisted to database: {}", savedEmployee);
 
-        return employeeRepository.save(employee);
+        return savedEmployee;
     }
-
 
     // Persist in-memory employees to the database
     public void persistEmployees() {
         List<Employee> validEmployees = inMemoryEmployees.stream()
-                .filter(emp -> emp.getSalary() >= 1000) // Ensure only valid salaries
+                .filter(emp -> emp.getSalary() >= 1000)
                 .collect(Collectors.toList());
 
         if (!validEmployees.isEmpty()) {
-            employeeRepository.saveAll(validEmployees); // Save valid employees
-            inMemoryEmployees.removeAll(validEmployees); // Remove only persisted employees
+            log.info("Persisting {} employees to the database.", validEmployees.size());
+            employeeRepository.saveAll(validEmployees);
+            inMemoryEmployees.removeAll(validEmployees);
+            log.info("Successfully persisted employees.");
         } else {
-            throw new RuntimeException("No valid employees to persist. Ensure all employees have a salary of at least 1000.");
+            log.warn("No valid employees to persist. Ensure all employees have a salary of at least 1000.");
+            throw new RuntimeException("No valid employees to persist.");
         }
     }
 
-
     // Get All Employees (Called by GET /employeeservice/)
     public List<EmployeeDTO> getAllEmployees() {
+        log.info("Fetching all employees...");
         List<EmployeeDTO> employees = new ArrayList<>();
         inMemoryEmployees.forEach(emp -> employees.add(new EmployeeDTO(emp.getName(), emp.getSalary())));
         employees.addAll(employeeRepository.findAll().stream()
                 .map(emp -> new EmployeeDTO(emp.getName(), emp.getSalary()))
                 .collect(Collectors.toList()));
+        log.info("Total employees fetched: {}", employees.size());
         return employees;
     }
 
-
     // Get Employee By ID (Called by GET /employeeservice/get/{id})
     public EmployeeDTO getEmployeeById(Long id) {
+        log.info("Fetching employee with ID: {}", id);
         Employee employee = employeeRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id " + id));
+                .orElseThrow(() -> {
+                    log.error("Employee not found with ID: {}", id);
+                    return new ResourceNotFoundException("Employee not found with id " + id);
+                });
+        log.info("Employee found: {}", employee);
         return new EmployeeDTO(employee.getName(), employee.getSalary());
     }
 
-// Update Employee (Called by PUT /employeeservice/update/{id})
-public Employee updateEmployee(Long id, EmployeeDTO updatedEmployeeDTO) {
-    Employee employee = employeeRepository.findById(id)
-            .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id " + id));
-    employee.setName(updatedEmployeeDTO.getName());
-    employee.setSalary(updatedEmployeeDTO.getSalary());
-    return employeeRepository.save(employee);
-}
+    // Update Employee (Called by PUT /employeeservice/update/{id})
+    public Employee updateEmployee(Long id, EmployeeDTO updatedEmployeeDTO) {
+        log.info("Updating employee with ID: {}", id);
+        Employee employee = employeeRepository.findById(id)
+                .orElseThrow(() -> {
+                    log.error("Employee not found with ID: {}", id);
+                    return new ResourceNotFoundException("Employee not found with id " + id);
+                });
+
+        employee.setName(updatedEmployeeDTO.getName());
+        employee.setSalary(updatedEmployeeDTO.getSalary());
+        Employee updatedEmployee = employeeRepository.save(employee);
+        log.info("Employee updated successfully: {}", updatedEmployee);
+        return updatedEmployee;
+    }
 
     // Delete Employee (Called by DELETE /employeeservice/delete/{id})
     public void deleteEmployee(Long id) {
+        log.info("Deleting employee with ID: {}", id);
         Employee employee = employeeRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id " + id));
-        employeeRepository.delete(employee);
-    }
+                .orElseThrow(() -> {
+                    log.error("Employee not found with ID: {}", id);
+                    return new ResourceNotFoundException("Employee not found with id " + id);
+                });
 
+        employeeRepository.delete(employee);
+        log.info("Employee with ID {} deleted successfully.", id);
+    }
 }
