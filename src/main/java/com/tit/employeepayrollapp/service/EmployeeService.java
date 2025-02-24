@@ -1,6 +1,7 @@
 package com.tit.employeepayrollapp.service;
 
 import com.tit.employeepayrollapp.dto.EmployeeDTO;
+import com.tit.employeepayrollapp.exception.EmployeeNotFoundException;
 import com.tit.employeepayrollapp.model.Employee;
 import com.tit.employeepayrollapp.repository.EmployeeRepository;
 import com.tit.employeepayrollapp.exception.ResourceNotFoundException;
@@ -60,28 +61,27 @@ public class EmployeeService {
         return employees;
     }
 
-    // ✅ Get Employee By ID (Throws `ResourceNotFoundException` if not found)
+    // Get Employee By ID (Throws `ResourceNotFoundException` if not found)
     public EmployeeDTO getEmployeeById(Long id) {
         Employee employee = employeeRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Employee not found with ID: " + id));
+                .orElseThrow(() -> new EmployeeNotFoundException("Employee not found with ID: " + id));
         return new EmployeeDTO(employee.getName(), employee.getSalary());
     }
-
-    // ✅ Update Employee (Applies @Valid for validation)
-    public Employee updateEmployee(Long id, @Valid EmployeeDTO updatedEmployeeDTO) {
+    public Employee updateEmployee(Long id, EmployeeDTO updatedEmployeeDTO) {
         Employee employee = employeeRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Employee not found with ID: " + id));
+                .orElseThrow(() -> new EmployeeNotFoundException("Employee not found with ID: " + id));
 
         employee.setName(updatedEmployeeDTO.getName());
         employee.setSalary(updatedEmployeeDTO.getSalary());
-
         return employeeRepository.save(employee);
     }
 
-    // ✅ Delete Employee (Throws `ResourceNotFoundException` if ID does not exist)
     public void deleteEmployee(Long id) {
         Employee employee = employeeRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Employee not found with ID: " + id));
+                .orElseThrow(() -> new EmployeeNotFoundException("Employee not found with ID: " + id));
         employeeRepository.delete(employee);
     }
+
+
+
 }
