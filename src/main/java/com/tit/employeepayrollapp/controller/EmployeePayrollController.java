@@ -16,8 +16,14 @@ import java.util.List;
 public class EmployeePayrollController {
 
     @Autowired
-    private EmployeeService employeeService;
-
+    private final EmployeeService employeeService;
+    public EmployeePayrollController(EmployeeService employeeService) {
+        this.employeeService = employeeService;
+    }
+    @GetMapping("/get/{id}")  // ✅ Ensure this annotation is correct
+    public EmployeeDTO getEmployeeById(@PathVariable Long id) {
+        return employeeService.getEmployeeById(id);
+    }
     @PostMapping("/create")
     public ResponseEntity<Employee> createEmployee(@Valid @RequestBody EmployeeDTO employeeDTO) {
         Employee savedEmployee = employeeService.saveEmployee(employeeDTO);
@@ -28,5 +34,10 @@ public class EmployeePayrollController {
     public ResponseEntity<Employee> updateEmployee(@PathVariable Long id, @Valid @RequestBody EmployeeDTO employeeDTO) {
         Employee updatedEmployee = employeeService.updateEmployee(id, employeeDTO);
         return ResponseEntity.ok(updatedEmployee);
+    }
+    @DeleteMapping("/delete/{id}")
+    public ResponseEntity<String> deleteEmployee(@PathVariable Long id) {
+        employeeService.deleteEmployee(id);
+        return ResponseEntity.ok("Employee deleted successfully!");
     }
 }
