@@ -1,17 +1,22 @@
 package com.tit.employeepayrollapp.service;
 
-
-
 import com.tit.employeepayrollapp.dto.EmployeeDTO;
 import com.tit.employeepayrollapp.model.Employee;
 import com.tit.employeepayrollapp.repository.EmployeeRepository;
+import com.tit.employeepayrollapp.exception.ResourceNotFoundException;
+import com.tit.employeepayrollapp.config.ConfigProperties;
+
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
-import com.tit.employeepayrollapp.exception.ResourceNotFoundException;
+import org.springframework.beans.factory.annotation.Value;
+import javax.annotation.PostConstruct;
+import com.tit.employeepayrollapp.config.AppConfig;
+
 import java.util.ArrayList;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
+
 import lombok.extern.slf4j.Slf4j;
 
 @Service
@@ -20,6 +25,12 @@ public class EmployeeService {
 
     @Autowired
     private EmployeeRepository employeeRepository;
+
+    @Autowired
+    private ConfigProperties configProperties;  // Inject externalized config
+
+    @Value("${app.default.salary.threshold:1000}")
+    private int salaryThreshold;  // Read from properties with default value 1000
 
     private final List<Employee> inMemoryEmployees = new CopyOnWriteArrayList<>();
 
@@ -32,8 +43,8 @@ public class EmployeeService {
         employee.setSalary(employeeDTO.getSalary());
 
         log.debug("Stored Employee in-memory: {}", employee);
-
         inMemoryEmployees.add(employee);
+
         Employee savedEmployee = employeeRepository.save(employee);
         log.info("Employee persisted to database: {}", savedEmployee);
 
@@ -43,7 +54,7 @@ public class EmployeeService {
     // Persist in-memory employees to the database
     public void persistEmployees() {
         List<Employee> validEmployees = inMemoryEmployees.stream()
-                .filter(emp -> emp.getSalary() >= 1000)
+                .filter(emp -> emp.getSalary() >= salaryThreshold)  // Use externalized salary threshold
                 .collect(Collectors.toList());
 
         if (!validEmployees.isEmpty()) {
@@ -52,7 +63,7 @@ public class EmployeeService {
             inMemoryEmployees.removeAll(validEmployees);
             log.info("Successfully persisted employees.");
         } else {
-            log.warn("No valid employees to persist. Ensure all employees have a salary of at least 1000.");
+            log.warn("No valid employees to persist. Ensure all employees have a salary of at least {}.", salaryThreshold);
             throw new RuntimeException("No valid employees to persist.");
         }
     }
@@ -109,4 +120,17 @@ public class EmployeeService {
         employeeRepository.delete(employee);
         log.info("Employee with ID {} deleted successfully.", id);
     }
+
+    // Print Externalized Configuration
+    public void printConfig() {
+        log.info("Application Name: {}", configProperties.getName());
+        log.info("Application Version: {}", configProperties.getVersion());
+        log.info("Environment: {}", configProperties.getEnvironment());
+        log.info("Salary Threshold: {}", salaryThreshold);
+    }
+    @PostConstruct
+    public void init() {
+        printConfig();
+    }
+
 }
